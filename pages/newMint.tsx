@@ -21,7 +21,7 @@ const NewMint: NextPage<NewMint> = ({ mint }) => {
   const { connection } = useConnection();
   const [metadata, setMetadata] = useState<any>(null);
   const router = useRouter();
-  const metaplex = useMemo(() => Metaplex.make(connection), []);
+  const metaplex = useMemo(() => Metaplex.make(connection), [connection]);
   useEffect(() => {
     if (!mint) return;
     metaplex
@@ -33,7 +33,7 @@ const NewMint: NextPage<NewMint> = ({ mint }) => {
         setMetadata(json);
       })
       .catch((error) => console.error(error));
-  }, []);
+  }, [metaplex, mint]);
   const handleClick: MouseEventHandler<HTMLButtonElement> = useCallback(
     async (event) => {},
     []
@@ -42,6 +42,18 @@ const NewMint: NextPage<NewMint> = ({ mint }) => {
     return (
       <MainLayout title="Essential Elements | No Mint">
         <Text color="white">NO MINT</Text>
+        <Button
+          bgColor="transparent"
+          color="white"
+          maxWidth="380px"
+          onClick={() => router.replace("/")}
+          _hover={{ backgroundColor: "transparent" }}
+        >
+          <HStack>
+            <ArrowBackIcon />
+            <Text>Back</Text>
+          </HStack>
+        </Button>
       </MainLayout>
     );
   }

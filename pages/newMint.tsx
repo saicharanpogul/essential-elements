@@ -35,8 +35,10 @@ const NewMint: NextPage<NewMint> = ({ mint }) => {
       .catch((error) => console.error(error));
   }, [metaplex, mint]);
   const handleClick: MouseEventHandler<HTMLButtonElement> = useCallback(
-    async (event) => {},
-    []
+    async (event) => {
+      router.push(`/stake?mint=${mint}&imageSrc=${metadata?.image}`);
+    },
+    [mint, metadata, router]
   );
   if (!mint) {
     return (
@@ -59,7 +61,7 @@ const NewMint: NextPage<NewMint> = ({ mint }) => {
   }
   return (
     <MainLayout
-      title={`Essential Elements | ${metadata?.name}`}
+      title={`${metadata?.name} | Essential Elements`}
       description={metadata?.description}
       ogImage={metadata?.image}
     >
@@ -86,7 +88,7 @@ const NewMint: NextPage<NewMint> = ({ mint }) => {
         _hover={{ backgroundColor: "accent" }}
       >
         <HStack>
-          <Text>stake my buildoor</Text>
+          <Text>stake my element</Text>
           <ArrowForwardIcon />
         </HStack>
       </Button>

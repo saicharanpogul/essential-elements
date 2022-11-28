@@ -26,6 +26,7 @@ import {
   CandyMachineV2,
 } from "@metaplex-foundation/js";
 import { PublicKey } from "@solana/web3.js";
+import { CANDY_MACHINE_ID } from "../utils/constants";
 
 const Connected: FC = () => {
   const router = useRouter();
@@ -43,7 +44,7 @@ const Connected: FC = () => {
     metaplex
       .candyMachinesV2()
       .findByAddress({
-        address: new PublicKey("6c3eVkmukPhBLt9FnQC1UbfB5r1e8YdopGLmmA1ZPYBK"),
+        address: new PublicKey(CANDY_MACHINE_ID),
       })
       .then((_candyMachine) => {
         // console.log(_candyMachine);

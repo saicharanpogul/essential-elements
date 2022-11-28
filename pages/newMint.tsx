@@ -73,7 +73,7 @@ const NewMint: NextPage<NewMint> = ({ mint }) => {
         Congratulations, you minted a essential element of life.
         <br /> Time to state your element to earn rewards and endure.
       </Text>
-      <Image
+      <img
         src={metadata?.image ?? ""}
         alt=""
         width={200}

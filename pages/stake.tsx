@@ -98,7 +98,7 @@ const Stake: NextPage<StakeProps> = ({ imageSrc }) => {
               alignItems={"center"}
               marginBottom={4}
             >
-              <Image
+              <img
                 src={imageSrc ?? ""}
                 alt=""
                 width={200}

@@ -16,6 +16,8 @@ import {
   createUnstakeInstruction,
 } from "../utils/instructions";
 import { PROGRAM_ID as METADATA_PROGRAM_ID } from "@metaplex-foundation/mpl-token-metadata";
+import * as anchor from "@project-serum/anchor";
+import { useWorkSpace } from "./WorkspaceProvider";
 
 interface StakingStateProps {
   isStaked: boolean;
@@ -42,9 +44,15 @@ const StakingState: React.FC<StakingStateProps> = ({
   const [nftTokenAccount, setNftTokenAccount] = useState<PublicKey>();
   const walletAdapter = useWallet();
   const { connection } = useConnection();
+  const workspace = useWorkSpace();
 
   const checkStakingStatus = useCallback(async () => {
-    if (!walletAdapter.publicKey || !nftTokenAccount) {
+    if (
+      !walletAdapter.connected ||
+      !walletAdapter.publicKey ||
+      !nftTokenAccount ||
+      !workspace.program
+    ) {
       console.log(
         "Not checking status...",
         walletAdapter.publicKey,
@@ -55,9 +63,10 @@ const StakingState: React.FC<StakingStateProps> = ({
     try {
       console.log("Checking status...");
       const account = await getStakeAccount(
-        connection,
+        // connection,
         walletAdapter.publicKey,
-        nftTokenAccount
+        nftTokenAccount,
+        workspace.program
       );
       const days = Math.floor(
         (new Date().getTime() -
@@ -66,18 +75,16 @@ const StakingState: React.FC<StakingStateProps> = ({
       );
       setDaysStaked(days);
       setTotalEarned(
-        (((new Date().getTime() -
+        ((new Date().getTime() -
           new Date(account.stakeStartTime.toNumber() * 1000).getTime()) *
           100) /
-          LAMPORTS_PER_SOL) *
-          10000
+          LAMPORTS_PER_SOL
       );
       setClaimable(
-        (((new Date().getTime() -
+        ((new Date().getTime() -
           new Date(account.lastStakeRedeem.toNumber() * 1000).getTime()) *
           100) /
-          LAMPORTS_PER_SOL) *
-          10000
+          LAMPORTS_PER_SOL
       );
       console.log("days:", days);
       console.log("stake account:", account);
@@ -93,8 +100,8 @@ const StakingState: React.FC<StakingStateProps> = ({
       console.log("tokenAccount:", account.tokenAccount?.toBase58());
       console.log("userPubkey:", account.userPubkey?.toBase58());
       console.log("isInitialized:", account.isInitialized);
-      setIsStaking(account.stakeState === 0);
-      setStaking(account.stakeState === 0);
+      setIsStaking(account.stakeState.staked);
+      setStaking(account.stakeState.staked);
     } catch (error) {
       console.log("error:", error);
     }
@@ -141,7 +148,8 @@ const StakingState: React.FC<StakingStateProps> = ({
       if (
         !walletAdapter.connected ||
         !walletAdapter.publicKey ||
-        !nftTokenAccount
+        !nftTokenAccount ||
+        !workspace.program
       ) {
         alert("Please connect your wallet");
         return;
@@ -152,29 +160,48 @@ const StakingState: React.FC<StakingStateProps> = ({
         PROGRAM_ID
       );
 
-      const tx = new Transaction();
-      const account = await connection.getAccountInfo(stakeAccount);
-      if (!account) {
-        tx.add(
-          createInitializeStakeAccountInstruction(
-            walletAdapter.publicKey,
-            nftTokenAccount,
-            PROGRAM_ID
-          )
-        );
-      }
-
-      const stakeInstruction = createStakingInstruction(
-        walletAdapter.publicKey,
-        nftTokenAccount,
-        PROGRAM_ID,
-        nftData.mint.address,
-        nftData.edition.address,
-        TOKEN_PROGRAM_ID,
-        METADATA_PROGRAM_ID
+      const [delegateAuthPda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("authority")],
+        PROGRAM_ID
       );
 
-      tx.add(stakeInstruction);
+      const tx = new Transaction();
+      // const account = await connection.getAccountInfo(stakeAccount);
+      // if (!account) {
+      //   tx.add(
+      //     createInitializeStakeAccountInstruction(
+      //       walletAdapter.publicKey,
+      //       nftTokenAccount,
+      //       PROGRAM_ID
+      //     )
+      //   );
+      // }
+
+      // const stakeInstruction = createStakingInstruction(
+      //   walletAdapter.publicKey,
+      //   nftTokenAccount,
+      //   PROGRAM_ID,
+      //   nftData.mint.address,
+      //   nftData.edition.address,
+      //   TOKEN_PROGRAM_ID,
+      //   METADATA_PROGRAM_ID
+      // );
+
+      // tx.add(stakeInstruction);
+      tx.add(
+        await workspace.program.methods
+          .stake()
+          .accounts({
+            nftTokenAccount: nftTokenAccount,
+            nftMint: nftData.mint.address,
+            nftEdition: nftData.edition.address,
+            metadataProgram: METADATA_PROGRAM_ID,
+            stakeState: stakeAccount,
+            user: walletAdapter.publicKey,
+            programAuthority: delegateAuthPda,
+          })
+          .instruction()
+      );
       await sendAndConfirmTransaction(tx);
     } catch (error) {
       console.log("staking error:", error);
@@ -189,39 +216,64 @@ const StakingState: React.FC<StakingStateProps> = ({
       if (
         !walletAdapter.connected ||
         !walletAdapter.publicKey ||
-        !nftTokenAccount
+        !nftTokenAccount ||
+        !workspace.program
       ) {
         alert("Please connect your wallet");
         return;
       }
 
+      const [stakeAccount] = PublicKey.findProgramAddressSync(
+        [walletAdapter.publicKey.toBuffer(), nftTokenAccount.toBuffer()],
+        PROGRAM_ID
+      );
+
       const userStakeATA = await getAssociatedTokenAddress(
         STAKE_MINT,
         walletAdapter.publicKey
       );
-      const account = await connection.getAccountInfo(userStakeATA);
+
+      const [mintAuth] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("mint")],
+        PROGRAM_ID
+      );
+
       const tx = new Transaction();
+      // const account = await connection.getAccountInfo(userStakeATA);
 
-      if (!account) {
-        tx.add(
-          createAssociatedTokenAccountInstruction(
-            walletAdapter.publicKey,
-            userStakeATA,
-            walletAdapter.publicKey,
-            STAKE_MINT
-          )
-        );
-      }
+      // if (!account) {
+      //   tx.add(
+      //     createAssociatedTokenAccountInstruction(
+      //       walletAdapter.publicKey,
+      //       userStakeATA,
+      //       walletAdapter.publicKey,
+      //       STAKE_MINT
+      //     )
+      //   );
+      // }
 
+      // tx.add(
+      //   createRedeemInstruction(
+      //     walletAdapter.publicKey,
+      //     nftTokenAccount,
+      //     PROGRAM_ID,
+      //     STAKE_MINT,
+      //     userStakeATA,
+      //     TOKEN_PROGRAM_ID
+      //   )
+      // );
       tx.add(
-        createRedeemInstruction(
-          walletAdapter.publicKey,
-          nftTokenAccount,
-          PROGRAM_ID,
-          STAKE_MINT,
-          userStakeATA,
-          TOKEN_PROGRAM_ID
-        )
+        await workspace.program.methods
+          .redeem()
+          .accounts({
+            nftTokenAccount: nftTokenAccount,
+            stakeMint: STAKE_MINT,
+            userStakeAta: userStakeATA,
+            stakeState: stakeAccount,
+            stakeAuthority: mintAuth,
+            user: walletAdapter.publicKey,
+          })
+          .instruction()
       );
 
       await sendAndConfirmTransaction(tx);
@@ -238,38 +290,72 @@ const StakingState: React.FC<StakingStateProps> = ({
       if (
         !walletAdapter.connected ||
         !walletAdapter.publicKey ||
-        !nftTokenAccount
+        !nftTokenAccount ||
+        !workspace.program
       ) {
         alert("Please connect your wallet");
         return;
       }
 
+      const [stakeAccount] = PublicKey.findProgramAddressSync(
+        [walletAdapter.publicKey.toBuffer(), nftTokenAccount.toBuffer()],
+        PROGRAM_ID
+      );
+
       const userStakeATA = await getAssociatedTokenAddress(
         STAKE_MINT,
         walletAdapter.publicKey
       );
-      const account = await connection.getAccountInfo(userStakeATA);
+
+      const [mintAuth] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("mint")],
+        PROGRAM_ID
+      );
+
+      const [delegateAuthPda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("authority")],
+        PROGRAM_ID
+      );
+
       const tx = new Transaction();
-      if (!account) {
-        createAssociatedTokenAccountInstruction(
-          walletAdapter.publicKey,
-          userStakeATA,
-          walletAdapter.publicKey,
-          STAKE_MINT
-        );
-      }
+      // const account = await connection.getAccountInfo(userStakeATA);
+      // if (!account) {
+      //   createAssociatedTokenAccountInstruction(
+      //     walletAdapter.publicKey,
+      //     userStakeATA,
+      //     walletAdapter.publicKey,
+      //     STAKE_MINT
+      //   );
+      // }
+      // tx.add(
+      //   createUnstakeInstruction(
+      //     walletAdapter.publicKey,
+      //     nftTokenAccount,
+      //     PROGRAM_ID,
+      //     nftData.address,
+      //     nftData.edition.address,
+      //     STAKE_MINT,
+      //     userStakeATA,
+      //     TOKEN_PROGRAM_ID,
+      //     METADATA_PROGRAM_ID
+      //   )
+      // );
       tx.add(
-        createUnstakeInstruction(
-          walletAdapter.publicKey,
-          nftTokenAccount,
-          PROGRAM_ID,
-          nftData.address,
-          nftData.edition.address,
-          STAKE_MINT,
-          userStakeATA,
-          TOKEN_PROGRAM_ID,
-          METADATA_PROGRAM_ID
-        )
+        await workspace.program.methods
+          .unstake()
+          .accounts({
+            nftTokenAccount: nftTokenAccount,
+            nftMint: nftData.mint.address,
+            nftEdition: nftData.edition.address,
+            metadataProgram: METADATA_PROGRAM_ID,
+            stakeMint: STAKE_MINT,
+            userStakeAta: userStakeATA,
+            user: walletAdapter.publicKey,
+            stakeAuthority: mintAuth,
+            stakeState: stakeAccount,
+            programAuthority: delegateAuthPda,
+          })
+          .instruction()
       );
       await sendAndConfirmTransaction(tx);
     } catch (error) {

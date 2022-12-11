@@ -55,6 +55,7 @@ const Stake: NextPage<StakeProps> = ({ imageSrc }) => {
         .then((nft) => {
           console.log("nft data on stake page:", nft);
           setNftData(nft);
+          console.log("Data", nft.json);
         });
     } catch (error) {
       console.log("error getting nft:", error);

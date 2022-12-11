@@ -272,6 +272,7 @@ const StakingState: React.FC<StakingStateProps> = ({
             stakeState: stakeAccount,
             stakeAuthority: mintAuth,
             user: walletAdapter.publicKey,
+            mintMetadata: nftData.metadataAddress,
           })
           .instruction()
       );
@@ -354,6 +355,7 @@ const StakingState: React.FC<StakingStateProps> = ({
             stakeAuthority: mintAuth,
             stakeState: stakeAccount,
             programAuthority: delegateAuthPda,
+            mintMetadata: nftData.metadataAddress,
           })
           .instruction()
       );
